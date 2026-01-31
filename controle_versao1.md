@@ -1,1 +1,3 @@
-Conteúdo diferente para o teste de controle de versão (teste11)
+Conteúdo corrigido da simulação de conflito (teste1)
+
+Conteúdo unificado manualmente
