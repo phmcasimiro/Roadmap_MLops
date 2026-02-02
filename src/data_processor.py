@@ -223,6 +223,66 @@ class CryptoDataProcessor:
 
         return df.sort_values(by=metric, ascending=ascending).copy()
 
+    @staticmethod
+    def process_historical_data(coin_id: str, raw_history: Dict) -> pd.DataFrame:
+        """
+        Processa dados históricos de uma moeda especifica.
+
+        Args:
+            coin_id (str): ID da moeda
+            raw_history (Dict): Dados retornados por market_chart/range
+
+        Returns:
+            pd.DataFrame: DataFrame processado
+        """
+        if not raw_history or "prices" not in raw_history:
+            return pd.DataFrame()
+
+        # Extrair dados
+        # raw_history['prices'] = [[timestamp, price], ...]
+        prices = raw_history.get("prices", [])
+        market_caps = raw_history.get("market_caps", [])
+        total_volumes = raw_history.get("total_volumes", [])
+
+        # Criar dicionário indexado pelo timestamp para fusão
+        data_dict = {}
+
+        for ts, price in prices:
+            data_dict[ts] = {"collected_at": ts, "current_price": price}
+
+        for ts, mcap in market_caps:
+            if ts in data_dict:
+                data_dict[ts]["market_cap"] = mcap
+
+        for ts, vol in total_volumes:
+            if ts in data_dict:
+                data_dict[ts]["total_volume"] = vol
+
+        # Converter para lista
+        records = []
+        for ts, values in data_dict.items():
+            # Converter timestamp ms para datetime
+            dt_obj = datetime.fromtimestamp(ts / 1000)
+
+            record = {
+                "coin_id": coin_id,
+                "symbol": "",  # Será preenchido externamente se possível ou ignorado (é NOT NULL no DB, atenção)
+                # Como o DB exige symbol e name (NOT NULL), precisamos pegá-los de algum lugar.
+                # O endpoint de histórico NÂO retorna symbol/name.
+                # Assumiremos que o chamador vai complementar ou usaremos placeholders.
+                "collected_at": dt_obj,
+                "current_price": values.get("current_price"),
+                "market_cap": values.get("market_cap"),
+                "total_volume": values.get("total_volume"),
+                # Campos obrigatórios no DB que não temos no histórico:
+                # symbol, name.
+                # Vamos preencher com placeholder aqui e o chamador corrige.
+            }
+            records.append(record)
+
+        df = pd.DataFrame(records)
+        return df
+
 
 def main():
     """Função de teste do módulo."""
