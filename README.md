@@ -33,12 +33,15 @@ A arquitetura segue o padrão **ETL (Extract, Transform, Load)** desacoplado, co
 ## Funcionalidades Principais
 
 ### 1. Motor de Coleta Híbrida (`main.py`)
+
 - **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas).
 - **Modo Histórico**: Realiza *backfill* de dados passados (configurável, ex: 365 dias) com gestão inteligente de limites da API.
 - **Automação**: Agendamento via CRON para execução diária (Data Pipeline automatizado).
 
 ### 2. Dashboard Analítico V3 (`src/dashboard.py`)
+
 Interface web profissional para exploração de dados:
+
 - **Sidebar Global**: Controle unificado para seleção de ativos.
 - **Aba Comparativa**: Análise de séries temporais normalizadas, permitindo comparar a performance relativa de múltiplos ativos (Highlight vs Background).
 - **Aba Análise Técnica**: Gráficos de Velas (Candlesticks) com indicadores financeiros (SMA, EMA, MACD) e subplots de Volume.
@@ -47,10 +50,12 @@ Interface web profissional para exploração de dados:
 ## Guia de Instalação e Execução
 
 ### Pré-requisitos
+
 - Python 3.10+
 - Ambiente Virtual (recomendado)
 
 ### 1. Configuração do Ambiente
+
 ```bash
 # Clone e entre na pasta
 git clone <URL_REPO>
@@ -68,13 +73,16 @@ pip install -r requirements.txt
 ### 2. Coleta de Dados (ETL)
 
 **Carga Inicial (Histórico - Recomendado para Demo):**
+
 ```bash
 # Coleta 1 ano de histórico para as Top 50 moedas
 # (Atenção: Pode levar alguns minutos devido aos limites da API)
+
 python main.py --historical --days 365 --all
 ```
 
 **Coleta Tempo Real:**
+
 ```bash
 # Atualiza os dados das Top 250 moedas
 python main.py --all
@@ -87,9 +95,11 @@ Verifique com: `crontab -l`
 ### 3. Executando o Dashboard
 
 Para iniciar a interface de visualização:
+
 ```bash
 python run_dashboard.py
 ```
+
 Acesse no seu navegador: **http://127.0.0.1:8051**
 
 ## Estrutura do Projeto
