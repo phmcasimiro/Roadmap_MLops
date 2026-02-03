@@ -1,256 +1,122 @@
-# Sistema de Coleta de Dados de Criptomoedas
+# Plataforma de Análise de Dados de Criptomoedas (MLOps)
 
-Sistema completo para coleta, processamento e armazenamento de dados de criptomoedas usando Python, Pandas e SQLite.
+## Visão Geral
 
-## Descrição
+Este projeto é uma **plataforma completa de Engenharia de Dados e MLOps** para o mercado de criptomoedas. Diferente de scripts isolados, esta solução integra todo o ciclo de vida do dado: desde a ingestão (Real-time & Batch), passando pelo processamento estruturado, armazenamento persistente, até a visualização analítica interativa.
 
-Este projeto demonstra os **fundamentos de programação** aplicados a um caso real de MLOps:
+Automatizado para rodar 24/7, ele fornece insights contínuos sobre o mercado cripto, servindo como fundação para futuros modelos de Machine Learning.
 
-- **Lógica de programação**: Fluxo sequencial de coleta → processamento → persistência
-- **Estruturas de dados**: Listas, dicionários, DataFrames
-- **Paradigmas**: OOP (classes) e Funcional (métodos estáticos)
-- **Boas práticas**: PEP 8, docstrings, tratamento de erros
-- **Versionamento**: Git com commits semânticos
+## Arquitetura da Solução
 
-## Arquitetura
+A arquitetura segue o padrão **ETL (Extract, Transform, Load)** desacoplado, com uma camada de visualização segregada.
 
 ```text
-projeto_cripto/
-├── .gitignore              # Arquivos ignorados pelo Git
-├── README.md               # Este arquivo
-├── requirements.txt        # Dependências Python
-├── main.py                 # Script principal
-├── src/                    # Código fonte
-│   ├── __init__.py
-│   ├── api_client.py       # Cliente API CoinGecko
-│   ├── data_processor.py   # Processamento com Pandas
-│   └── database.py         # Persistência SQLite
-└── data/                   # Banco de dados (criado automaticamente)
-    └── cripto.db
+├── Ingestão (Extract)
+│   ├── Client API CoinGecko (Resiliente a Rate Limits)
+│   ├── Coleta Tempo Real (Top 250 assets)
+│   └── Coleta Histórica (Backfill de 1 ano)
+│
+├── Processamento (Transform)
+│   ├── Limpeza e Tipagem (Pandas)
+│   ├── Enriquecimento (Calculo de Volatilidade, SMA, MACD)
+│   └── Resampling Temporal (Horário/Diário)
+│
+├── Armazenamento (Load)
+│   └── SQLite (Relacional, indexado por CoinID e Timestamp)
+│
+└── Apresentação (Dashboard)
+    ├── Plotly Dash (Web Framework)
+    ├── Análise Comparativa (Séries Temporais)
+    └── Análise Técnica (Candlesticks, Indicadores)
 ```
 
-## Instalação
+## Funcionalidades Principais
 
-### 1. Clonar o repositório
+### 1. Motor de Coleta Híbrida (`main.py`)
+- **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas).
+- **Modo Histórico**: Realiza *backfill* de dados passados (configurável, ex: 365 dias) com gestão inteligente de limites da API.
+- **Automação**: Agendamento via CRON para execução diária (Data Pipeline automatizado).
 
+### 2. Dashboard Analítico V3 (`src/dashboard.py`)
+Interface web profissional para exploração de dados:
+- **Sidebar Global**: Controle unificado para seleção de ativos.
+- **Aba Comparativa**: Análise de séries temporais normalizadas, permitindo comparar a performance relativa de múltiplos ativos (Highlight vs Background).
+- **Aba Análise Técnica**: Gráficos de Velas (Candlesticks) com indicadores financeiros (SMA, EMA, MACD) e subplots de Volume.
+- **Responsividade**: Adaptação dinâmica da granulosidade dos dados (Horário vs Diário) baseado no zoom.
+
+## Guia de Instalação e Execução
+
+### Pré-requisitos
+- Python 3.10+
+- Ambiente Virtual (recomendado)
+
+### 1. Configuração do Ambiente
 ```bash
-git clone <URL_DO_SEU_REPOSITORIO>
-cd projeto_cripto
-```
+# Clone e entre na pasta
+git clone <URL_REPO>
+cd Roadmap_MLops
 
-### 2. Criar ambiente virtual (recomendado)
+# Crie e ative o ambiente virtual
+python3 -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# .venv\Scripts\activate   # Windows
 
-```bash
-# Linux/Mac
-python3 -m venv venv
-source venv/bin/activate
-
-# Windows
-python -m venv venv
-venv\Scripts\activate
-```
-
-### 3. Instalar dependências
-
-```bash
+# Instale as dependências
 pip install -r requirements.txt
 ```
 
-## Uso
+### 2. Coleta de Dados (ETL)
 
-### Execução básica
-
+**Carga Inicial (Histórico - Recomendado para Demo):**
 ```bash
-python main.py
+# Coleta 1 ano de histórico para as Top 50 moedas
+# (Atenção: Pode levar alguns minutos devido aos limites da API)
+python main.py --historical --days 365 --all
 ```
 
-### Opções disponíveis
-
+**Coleta Tempo Real:**
 ```bash
-# Coletar 20 criptomoedas (Padrão: 30)
-python main.py --limit 20
-
-# Coleta em Tempo Real de TODAS as criptomoedas (Top 250)
+# Atualiza os dados das Top 250 moedas
 python main.py --all
-
-# Coleta de DADOS HISTÓRICOS (último ano, Top 50 moedas)
-python main.py --historical --all
-
-# Personalizar histórico (ex: 30 dias, Top 10 moedas)
-python main.py --historical --days 30 --limit 10
-
-# Modo verboso (mais informações)
-python main.py --verbose
-
-# Especificar caminho do banco
-python main.py --db-path meu_banco.db
-
-# Ajuda
-python main.py --help
 ```
 
-## Funcionalidades
+**Agendamento Automático (Linux):**
+O pipeline está configurado para rodar 3x ao dia (09:00, 13:00, 18:00).
+Verifique com: `crontab -l`
 
-### 1. Coleta de Dados (API Client)
+### 3. Executando o Dashboard
 
-- Consome API pública CoinGecko
-- Tratamento robusto de erros
-- Context manager para gerenciamento de sessão
-
-### 2. Processamento (Pandas)
-
-- Conversão de tipos de dados
-- Tratamento de valores nulos
-- Métricas calculadas:
-  - Volatilidade 24h
-  - Distância do ATH/ATL
-  - Ratio Volume/Market Cap
-
-### 3. Persistência (SQLite)
-
-- Banco de dados relacional
-- Índices otimizados
-- Queries para análise histórica
-- Operações CRUD completas
-
-## Exemplos de Queries
-
-```python
-from src.database import CryptoDatabase
-
-db = CryptoDatabase()
-
-# Top 10 por market cap
-top10 = db.get_top_by_market_cap(limit=10)
-
-# Histórico do Bitcoin (7 dias)
-btc_history = db.get_coin_history('bitcoin', days=7)
-
-# Moedas com mudança > 5%
-volatile = db.get_price_changes(min_change_pct=5.0)
-
-# Estatísticas gerais
-stats = db.get_statistics()
-```
-
-## Conceitos Demonstrados
-
-### Lógica de Programação
-
-- Sequência: Fluxo linear de execução
-- Condição: Validações e tratamento de erros
-- Repetição: Loops para processar múltiplos registros
-
-### Estruturas de Dados
-
-- **Listas**: Armazenamento de múltiplas criptomoedas
-- **Dicionários**: Dados estruturados da API
-- **DataFrames**: Processamento eficiente com Pandas
-
-### Paradigmas
-
-- **OOP**: Classes `CoinGeckoClient`, `CryptoDataProcessor`, `CryptoDatabase`
-- **Funcional**: Métodos estáticos para transformações de dados
-
-### Boas Práticas
-
-- Nomenclatura PEP 8
-- Docstrings completas
-- Type hints
-- Tratamento de exceções
-- Context managers
-- Separação de responsabilidades
-
-## Workflow Git
-
-### Inicializar repositório
-
+Para iniciar a interface de visualização:
 ```bash
-git init
-git add .
-git commit -m "feat: implementa sistema de coleta de dados de criptomoedas"
+python run_dashboard.py
+```
+Acesse no seu navegador: **http://127.0.0.1:8051**
+
+## Estrutura do Projeto
+
+```text
+/
+├── main.py                 # Orquestrador do ETL (CLI)
+├── run_dashboard.py        # Entrypoint do Dashboard
+├── requirements.txt        # Dependências (Pandas, Requests, Dash)
+├── data/                   # Armazenamento (SQLite + Logs)
+└── src/
+    ├── api_client.py       # Wrapper da API (Request Caching & Retry)
+    ├── data_processor.py   # Lógica de Negócio e Tratamento de Dados
+    ├── database.py         # Camada de Persistência (SQLAlchemy/SQLite)
+    └── dashboard.py        # Aplicação Dash (Callbacks & Layout)
 ```
 
-### Commits semânticos
+## Próximos Passos (Roadmap)
 
-```bash
-# Nova funcionalidade
-git commit -m "feat(api): adiciona suporte para múltiplas moedas"
-
-# Correção de bug
-git commit -m "fix(database): corrige inserção de dados duplicados"
-
-# Documentação
-git commit -m "docs(readme): adiciona exemplos de uso"
-
-# Refatoração
-git commit -m "refactor(processor): simplifica cálculo de métricas"
-```
-
-### Conectar ao GitHub
-
-```bash
-# Criar repositório no GitHub primeiro, depois:
-git remote add origin https://github.com/seu-usuario/projeto-cripto.git
-git branch -M main
-git push -u origin main
-```
-
-## Testes
-
-### Testar módulos individualmente
-
-```bash
-# Testar API client
-python -m src.api_client
-
-# Testar processador
-python -m src.data_processor
-
-# Testar database
-python -m src.database
-```
-
-## Próximos Passos
-
-- [ ] Adicionar testes unitários (pytest)
-- [ ] Implementar logging estruturado
-- [ ] Criar dashboard de visualização
-- [ ] Adicionar cache de requisições
-- [ ] Implementar CI/CD com GitHub Actions
-- [ ] Adicionar análise de sentimento de notícias
-
-## Contribuindo
-
-1. Fork o projeto
-2. Crie uma branch: `git checkout -b feature/nova-funcionalidade`
-3. Commit suas mudanças: `git commit -m 'feat: adiciona nova funcionalidade'`
-4. Push para a branch: `git push origin feature/nova-funcionalidade`
-5. Abra um Pull Request
-
-## Licença
-
-Este projeto é open source e está disponível sob a licença MIT.
-
-## Autor
-
-**Pedro Casimiro**: <phmcasimiro@gmail.com>
-
-**Data**: Janeiro 2026
-
-## Links
-
-[Linkedin](https://www.linkedin.com/in/phmcasimiro/)
-
-[GitHub](https://github.com/phmcasimiro)
-
-## Recursos
-
-- [API CoinGecko](https://www.coingecko.com/en/api)
-- [Pandas Documentation](https://pandas.pydata.org/docs/)
-- [SQLite Documentation](https://www.sqlite.org/docs.html)
-- [Conventional Commits](https://www.conventionalcommits.org/)
+- [ ] **Dockerização**: Containerizar a aplicação para deploy simplificado.
+- [ ] **Data Quality**: Implementar testes de qualidade de dados (Great Expectations).
+- [ ] **Machine Learning**: Treinar modelos de previsão de séries temporais (Prophet/ARIMA).
+- [ ] **Cloud Deploy**: Migração para AWS/GCP e banco Postgres.
 
 ---
+**Autor:** Pedro Casimiro  
 
-Se este projeto foi útil, considere dar uma estrela no GitHub!
+[Projeto Roadmap MLOps](https://github.com/pedrocasimiro1/Roadmap_MLops)
+
+[Linkedin](https://www.linkedin.com/in/phmcasimiro/)
