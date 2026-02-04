@@ -48,3 +48,6 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# DVC Local Remote
+dvc_store/

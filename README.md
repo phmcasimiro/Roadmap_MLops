@@ -12,7 +12,7 @@ A arquitetura segue o padrão **ETL (Extract, Transform, Load)**.
 
 ```text
 ├── Ingestão (Extract)
-│   ├── Client API CoinGecko (Resiliente a Rate Limits)
+│   ├── Client API CoinGecko (Resiliente a Rate Limits e Retries)
 │   ├── Coleta Tempo Real (Top 250 assets)
 │   └── Coleta Histórica (Backfill de 1+ ano)
 │
@@ -27,7 +27,9 @@ A arquitetura segue o padrão **ETL (Extract, Transform, Load)**.
 
 ## Funcionalidades Principais
 
-### 1. Motor de Coleta Híbrida (`main.py`)
+### 1. Ingestão Híbrida Inteligente (`main.py`)
+- **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas) via `crontab` (3x/dia).
+- **Modo Histórico**: Capacidade de *backfill* de dados passados (configurável, ex: 365 dias) com controle automático de pausas para respeitar limites da API gratuita.
 
 - **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas).
 - **Modo Histórico**: Realiza *backfill* de dados passados (configurável, ex: 365 dias) com gestão inteligente de limites da API.
@@ -46,7 +48,6 @@ A arquitetura segue o padrão **ETL (Extract, Transform, Load)**.
 ## Guia de Instalação e Execução
 
 ### Pré-requisitos
-
 - Python 3.10+
 - Ambiente Virtual (recomendado)
 - (Opcional) Conta Gmail para alertas
@@ -54,7 +55,7 @@ A arquitetura segue o padrão **ETL (Extract, Transform, Load)**.
 ### 1. Configuração do Ambiente
 
 ```bash
-# Clone e entre na pasta
+# Clone o repositório
 git clone <URL_REPO>
 cd Roadmap_MLops
 
@@ -72,21 +73,23 @@ export EMAIL_USER="seu_email@gmail.com"
 export EMAIL_PASSWORD="sua_senha_de_app"
 ```
 
-### 2. Coleta de Dados (ETL)
+### 2. Configuração de Variáveis (Opcional)
+Para receber alertas de falha por e-mail:
+```bash
+export EMAIL_USER="seu_email@gmail.com"
+export EMAIL_PASSWORD="sua_senha_de_app"
+```
 
 **Carga Inicial (Histórico - Recomendado):**
 
+**Carga Inicial (Histórico):**
 ```bash
 # Coleta 1 ano de histórico para as Top 50 moedas
-# (Atenção: Pode levar alguns minutos devido aos limites da API)
-
-python main.py --historical --days 365 --all
+python main.py --historical --days 365
 ```
 
-**Coleta Tempo Real:**
-
+**Coleta Tempo Real (Manual):**
 ```bash
-# Atualiza os dados das Top 250 moedas
 python main.py --all
 ```
 
@@ -109,10 +112,10 @@ Verifique com: `crontab -l`
 
 ## Próximos Passos (Roadmap)
 
-- [ ] **Dockerização**: Containerizar a aplicação para deploy simplificado.
-- [ ] **Data Quality**: Implementar testes de qualidade de dados (Great Expectations).
-- [ ] **Machine Learning**: Treinar modelos de previsão de séries temporais (Prophet/ARIMA).
-- [ ] **Cloud Deploy**: Migração para AWS/GCP e banco Postgres.
+- [ ] **Data Quality**: Implementar testes de expectativa sobre os dados (Great Expectations).
+- [ ] **Machine Learning**: Treinar modelos de previsão de séries temporais usando os dados versionados.
+- [ ] **Cloud Storage**: Migrar o remote do DVC para AWS S3 ou Google Drive.
+- [ ] **Docker**: Containerizar o pipeline para deploy em orquestradores (Airflow/K8s).
 
 ---
 **Autor:** Pedro Casimiro
