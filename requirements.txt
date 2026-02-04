@@ -1,5 +1,6 @@
-pandas
-requests
+requests>=2.31.0
+pandas>=2.0.0
+dvc>=3.0.0
 openpyxl
 pytest
 python-dotenv

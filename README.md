@@ -2,119 +2,105 @@
 
 ## Visão Geral
 
-Este projeto é uma **plataforma de Engenharia de Dados** para o mercado de criptomoedas. Focada na robustez e automação, a solução gerencia todo o ciclo de vida do dado: desde a ingestão (Real-time & Batch) até o armazenamento estruturado, pronto para consumo por modelos de Machine Learning.
+Este projeto é uma **plataforma completa de Engenharia de Dados e MLOps** para o mercado de criptomoedas. Diferente de scripts isolados, esta solução integra todo o ciclo de vida do dado: desde a ingestão (Real-time & Batch), passando pelo processamento estruturado, armazenamento persistente, até o versionamento de dados.
 
-Automatizado para rodar 24/7, ele captura variações de mercado com granularidade fina (3x ao dia), criando um dataset histórico valioso.
+Automatizado para rodar 24/7, ele fornece insights contínuos sobre o mercado cripto, servindo como fundação para futuros modelos de Machine Learning.
 
 ## Arquitetura da Solução
 
-A arquitetura segue o padrão **ETL (Extract, Transform, Load)**.
+A arquitetura segue o padrão **ETL (Extract, Transform, Load)** focado em robustez e auditabilidade.
 
 ```text
 ├── Ingestão (Extract)
-│   ├── Client API CoinGecko (Resiliente a Rate Limits)
+│   ├── Client API CoinGecko (Resiliente a Rate Limits e Retries)
 │   ├── Coleta Tempo Real (Top 250 assets)
 │   └── Coleta Histórica (Backfill de 1+ ano)
 │
 ├── Processamento (Transform)
 │   ├── Limpeza e Tipagem (Pandas)
-│   ├── Enriquecimento (Cálculo de OHLC, Volatilidade)
+│   ├── Enriquecimento (Cálculo de OHLC, Volatilidade, SMA)
 │   └── Normalização Temporal
 │
-└── Armazenamento (Load)
-    └── SQLite (Relacional, indexado por CoinID e Timestamp)
+├── Armazenamento (Load)
+│   └── SQLite (Relacional, indexado por CoinID e Timestamp)
+│
+└── Governança & Resiliência
+    ├── Versionamento de Dados (DVC + Snapshots Semanais)
+    └── Monitoramento (Alertas de Falha via E-mail)
 ```
 
 ## Funcionalidades Principais
 
-### 1. Motor de Coleta Híbrida (`main.py`)
+### 1. Ingestão Híbrida Inteligente (`main.py`)
+- **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas) via `crontab` (3x/dia).
+- **Modo Histórico**: Capacidade de *backfill* de dados passados (configurável, ex: 365 dias) com controle inteligente de limites da API.
 
-- **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas).
-- **Modo Histórico**: Realiza *backfill* de dados passados (configurável, ex: 365 dias) com gestão inteligente de limites da API.
-- **Automação**: Agendamento via CRON para execução frequente.
+### 2. Resiliência e Monitoramento (`src/email_alert.py`)
+- **Alerta de Falha**: O pipeline monitora sua própria execução. Caso a coleta retorne 0 registros, um alerta crítico é disparado por e-mail para o administrador.
 
-### 2. Camada de Dados (`src/database.py`)
-
-- **Schema Otimizado**: Tabelas indexadas para consultas rápidas de séries temporais.
-- **Enriquecimento On-the-fly**: Capacidade de gerar agregação OHLC (Open, High, Low, Close) e indicadores técnicos (SMA) diretamente na consulta.
-
-### 3. Resiliência e Monitoramento (`src/backup_manager.py`, `src/email_alert.py`)
-
-- **Backup Estruturado**: Snapshots semanais do banco `cripto.db` salvos em `data/backups/`. Política de ratenção automática (mantém os últimos 4).
-- **Alerta de Falha**: Monitoramento ativo da ingestão. Se zero registros forem capturados, um e-mail é disparado para o admin.
-
-## Guia de Instalação e Execução
-
-### Pré-requisitos
-
-- Python 3.10+
-- Ambiente Virtual (recomendado)
-- (Opcional) Conta Gmail para alertas
-
-### 1. Configuração do Ambiente
-
-```bash
-# Clone e entre na pasta
-git clone <URL_REPO>
-cd Roadmap_MLops
-
-# Crie e ative o ambiente virtual
-python3 -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# .venv\Scripts\activate   # Windows
-
-# Instale as dependências
-pip install -r requirements.txt
-
-# Configuração de Alertas (Opcional)
-# Crie um arquivo .env ou exporte as variáveis:
-export EMAIL_USER="seu_email@gmail.com"
-export EMAIL_PASSWORD="sua_senha_de_app"
-```
-
-### 2. Coleta de Dados (ETL)
-
-**Carga Inicial (Histórico - Recomendado):**
-
-```bash
-# Coleta 1 ano de histórico para as Top 50 moedas
-# (Atenção: Pode levar alguns minutos devido aos limites da API)
-
-python main.py --historical --days 365 --all
-```
-
-**Coleta Tempo Real:**
-
-```bash
-# Atualiza os dados das Top 250 moedas
-python main.py --all
-```
-
-**Agendamento Automático (Linux):**
-O pipeline está configurado para rodar 3x ao dia (09:00, 13:00, 18:00).
-Verifique com: `crontab -l`
+### 3. Versionamento de Dados (`src/dvc_versioning.py`)
+- **DVC (Data Version Control)**: Implementação profissional de versionamento em substituição a backups manuais.
+    - O banco de dados `cripto.db` é rastreado como um artefato.
+    - Scripts automatizados geram snapshots semanais.
+    - Histórico armazenado em remote local (`dvc_store/`).
 
 ## Estrutura do Projeto
 
 ```text
 /
-├── main.py                 # Orquestrador do ETL (CLI)
-├── requirements.txt        # Dependências (Pandas, Requests)
-├── data/                   # Armazenamento (SQLite + Logs)
+├── main.py                 # Orquestrador do ETL (CLI Entrypoint)
+├── requirements.txt        # Dependências
+├── data/                   # Dados: cripto.db, logs e dvc_store/
+├── .dvc/                   # Configurações do DVC
 └── src/
-    ├── api_client.py       # Wrapper da API (Request Caching & Retry)
-    ├── data_processor.py   # Lógica de Negócio e Tratamento de Dados
-    └── database.py         # Camada de Persistência (SQLAlchemy/SQLite)
+    ├── api_client.py       # Wrapper da API
+    ├── data_processor.py   # Lógica MLOps
+    ├── database.py         # Persistência
+    ├── dvc_versioning.py   # Script de Snapshot (DVC)
+    └── email_alert.py      # Alertas
+```
+
+## Guia de Instalação e Execução
+
+### Pré-requisitos
+- Python 3.10+
+- Ambiente Virtual
+- DVC
+
+### 1. Configuração
+
+```bash
+git clone <URL_REPO>
+cd Roadmap_MLops
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+dvc pull
+```
+
+### 2. Pipeline e Alertas (Opcional)
+
+Para receber alertas por e-mail:
+```bash
+export EMAIL_USER="seu_email@gmail.com"
+export EMAIL_PASSWORD="sua_senha_de_app"
+```
+
+**Execução:**
+```bash
+# Histórico
+python main.py --historical --days 365 --all
+
+# Tempo Real
+python main.py --all
+```
+
+**Versionamento:**
+```bash
+python src/dvc_versioning.py
 ```
 
 ## Próximos Passos (Roadmap)
-
-- [ ] **Dockerização**: Containerizar a aplicação para deploy simplificado.
-- [ ] **Data Quality**: Implementar testes de qualidade de dados (Great Expectations).
-- [ ] **Machine Learning**: Treinar modelos de previsão de séries temporais (Prophet/ARIMA).
-- [ ] **Cloud Deploy**: Migração para AWS/GCP e banco Postgres.
-
----
-**Autor:** Pedro Casimiro
-[Projeto Roadmap MLOps](https://github.com/pedrocasimiro1/Roadmap_MLops)
-[Linkedin](https://www.linkedin.com/in/phmcasimiro/)
+- [ ] **Dockerização**: Containerizar a aplicação.
+- [ ] **Data Quality**: Great Expectations.
+- [ ] **Cloud**: S3 Remote e Postgres.
