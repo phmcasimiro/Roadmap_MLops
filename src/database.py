@@ -152,13 +152,16 @@ class CryptoDatabase:
 
         return df
 
-    def get_coin_history(self, coin_id: str, days: int = 7) -> pd.DataFrame:
+    def get_coin_history(
+        self, coin_id: str, days: int = 7, enrich_data: bool = False
+    ) -> pd.DataFrame:
         """
         Obtém histórico de uma criptomoeda específica.
 
         Args:
             coin_id (str): ID da criptomoeda
             days (int): Número de dias de histórico
+            enrich_data (bool): Se True, resurn OHLC diário e médias móveis
 
         Returns:
             pd.DataFrame: Histórico da criptomoeda
@@ -167,11 +170,51 @@ class CryptoDatabase:
         SELECT * FROM cryptocurrency_data
         WHERE coin_id = ?
         AND collected_at >= datetime('now', '-' || ? || ' days')
-        ORDER BY collected_at DESC
+        ORDER BY collected_at ASC
         """
+        # Nota: ORDER BY ASC é importante para cálculo de rolling window e candles
 
         with self._get_connection() as conn:
             df = pd.read_sql_query(query, conn, params=(coin_id, days))
+
+        if df.empty:
+            return df
+
+        # Converter string para datetime
+        df["collected_at"] = pd.to_datetime(df["collected_at"])
+
+        if enrich_data:
+            # Configurar index
+            df.set_index("collected_at", inplace=True)
+
+            # Resampling Diário (OHLCV)
+            # Como a coleta pode variar, o resample garante consistência diária
+            df_enriched = df.resample("D").agg(
+                {
+                    "current_price": [
+                        "first",
+                        "max",
+                        "min",
+                        "last",
+                    ],  # Open, High, Low, Close
+                    "total_volume": "max",  # Volume do dia
+                }
+            )
+
+            # Aplanar colunas MultiIndex
+            df_enriched.columns = ["open", "high", "low", "close", "volume"]
+
+            # Preencher dias sem coleta (se houver buracos, usa ffill para não quebrar gráfico)
+            df_enriched.fillna(method="ffill", inplace=True)
+
+            # Calcular Indicadores Técnicos
+            df_enriched["sma_50"] = df_enriched["close"].rolling(window=50).mean()
+            df_enriched["sma_200"] = df_enriched["close"].rolling(window=200).mean()
+
+            # Resetar index para retornar coluna de data
+            df_enriched.reset_index(inplace=True)
+
+            return df_enriched
 
         return df
 

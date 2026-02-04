@@ -2,32 +2,27 @@
 
 ## Visão Geral
 
-Este projeto é uma **plataforma completa de Engenharia de Dados e MLOps** para o mercado de criptomoedas. Diferente de scripts isolados, esta solução integra todo o ciclo de vida do dado: desde a ingestão (Real-time & Batch), passando pelo processamento estruturado, armazenamento persistente, até a visualização analítica interativa.
+Este projeto é uma **plataforma de Engenharia de Dados** para o mercado de criptomoedas. Focada na robustez e automação, a solução gerencia todo o ciclo de vida do dado: desde a ingestão (Real-time & Batch) até o armazenamento estruturado, pronto para consumo por modelos de Machine Learning.
 
-Automatizado para rodar 24/7, ele fornece insights contínuos sobre o mercado cripto, servindo como fundação para futuros modelos de Machine Learning.
+Automatizado para rodar 24/7, ele captura variações de mercado com granularidade fina (3x ao dia), criando um dataset histórico valioso.
 
 ## Arquitetura da Solução
 
-A arquitetura segue o padrão **ETL (Extract, Transform, Load)** desacoplado, com uma camada de visualização segregada.
+A arquitetura segue o padrão **ETL (Extract, Transform, Load)**.
 
 ```text
 ├── Ingestão (Extract)
 │   ├── Client API CoinGecko (Resiliente a Rate Limits)
 │   ├── Coleta Tempo Real (Top 250 assets)
-│   └── Coleta Histórica (Backfill de 1 ano)
+│   └── Coleta Histórica (Backfill de 1+ ano)
 │
 ├── Processamento (Transform)
 │   ├── Limpeza e Tipagem (Pandas)
-│   ├── Enriquecimento (Calculo de Volatilidade, SMA, MACD)
-│   └── Resampling Temporal (Horário/Diário)
+│   ├── Enriquecimento (Cálculo de OHLC, Volatilidade)
+│   └── Normalização Temporal
 │
-├── Armazenamento (Load)
-│   └── SQLite (Relacional, indexado por CoinID e Timestamp)
-│
-└── Apresentação (Dashboard)
-    ├── Plotly Dash (Web Framework)
-    ├── Análise Comparativa (Séries Temporais)
-    └── Análise Técnica (Candlesticks, Indicadores)
+└── Armazenamento (Load)
+    └── SQLite (Relacional, indexado por CoinID e Timestamp)
 ```
 
 ## Funcionalidades Principais
@@ -36,16 +31,17 @@ A arquitetura segue o padrão **ETL (Extract, Transform, Load)** desacoplado, co
 
 - **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas).
 - **Modo Histórico**: Realiza *backfill* de dados passados (configurável, ex: 365 dias) com gestão inteligente de limites da API.
-- **Automação**: Agendamento via CRON para execução diária (Data Pipeline automatizado).
+- **Automação**: Agendamento via CRON para execução frequente.
 
-### 2. Dashboard Analítico V3 (`src/dashboard.py`)
+### 2. Camada de Dados (`src/database.py`)
 
-Interface web profissional para exploração de dados:
+- **Schema Otimizado**: Tabelas indexadas para consultas rápidas de séries temporais.
+- **Enriquecimento On-the-fly**: Capacidade de gerar agregação OHLC (Open, High, Low, Close) e indicadores técnicos (SMA) diretamente na consulta.
 
-- **Sidebar Global**: Controle unificado para seleção de ativos.
-- **Aba Comparativa**: Análise de séries temporais normalizadas, permitindo comparar a performance relativa de múltiplos ativos (Highlight vs Background).
-- **Aba Análise Técnica**: Gráficos de Velas (Candlesticks) com indicadores financeiros (SMA, EMA, MACD) e subplots de Volume.
-- **Responsividade**: Adaptação dinâmica da granulosidade dos dados (Horário vs Diário) baseado no zoom.
+### 3. Resiliência e Monitoramento (`src/backup_manager.py`, `src/email_alert.py`)
+
+- **Backup Estruturado**: Snapshots semanais do banco `cripto.db` salvos em `data/backups/`. Política de ratenção automática (mantém os últimos 4).
+- **Alerta de Falha**: Monitoramento ativo da ingestão. Se zero registros forem capturados, um e-mail é disparado para o admin.
 
 ## Guia de Instalação e Execução
 
@@ -53,6 +49,7 @@ Interface web profissional para exploração de dados:
 
 - Python 3.10+
 - Ambiente Virtual (recomendado)
+- (Opcional) Conta Gmail para alertas
 
 ### 1. Configuração do Ambiente
 
@@ -68,11 +65,16 @@ source .venv/bin/activate  # Linux/Mac
 
 # Instale as dependências
 pip install -r requirements.txt
+
+# Configuração de Alertas (Opcional)
+# Crie um arquivo .env ou exporte as variáveis:
+export EMAIL_USER="seu_email@gmail.com"
+export EMAIL_PASSWORD="sua_senha_de_app"
 ```
 
 ### 2. Coleta de Dados (ETL)
 
-**Carga Inicial (Histórico - Recomendado para Demo):**
+**Carga Inicial (Histórico - Recomendado):**
 
 ```bash
 # Coleta 1 ano de histórico para as Top 50 moedas
@@ -92,29 +94,17 @@ python main.py --all
 O pipeline está configurado para rodar 3x ao dia (09:00, 13:00, 18:00).
 Verifique com: `crontab -l`
 
-### 3. Executando o Dashboard
-
-Para iniciar a interface de visualização:
-
-```bash
-python run_dashboard.py
-```
-
-Acesse no seu navegador: **http://127.0.0.1:8051**
-
 ## Estrutura do Projeto
 
 ```text
 /
 ├── main.py                 # Orquestrador do ETL (CLI)
-├── run_dashboard.py        # Entrypoint do Dashboard
-├── requirements.txt        # Dependências (Pandas, Requests, Dash)
+├── requirements.txt        # Dependências (Pandas, Requests)
 ├── data/                   # Armazenamento (SQLite + Logs)
 └── src/
     ├── api_client.py       # Wrapper da API (Request Caching & Retry)
     ├── data_processor.py   # Lógica de Negócio e Tratamento de Dados
-    ├── database.py         # Camada de Persistência (SQLAlchemy/SQLite)
-    └── dashboard.py        # Aplicação Dash (Callbacks & Layout)
+    └── database.py         # Camada de Persistência (SQLAlchemy/SQLite)
 ```
 
 ## Próximos Passos (Roadmap)
@@ -125,8 +115,6 @@ Acesse no seu navegador: **http://127.0.0.1:8051**
 - [ ] **Cloud Deploy**: Migração para AWS/GCP e banco Postgres.
 
 ---
-**Autor:** Pedro Casimiro  
-
+**Autor:** Pedro Casimiro
 [Projeto Roadmap MLOps](https://github.com/pedrocasimiro1/Roadmap_MLops)
-
 [Linkedin](https://www.linkedin.com/in/phmcasimiro/)
