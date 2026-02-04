@@ -2,31 +2,27 @@
 
 ## Visão Geral
 
-Este projeto é uma **plataforma completa de Engenharia de Dados e MLOps** para o mercado de criptomoedas. Diferente de scripts isolados, esta solução integra todo o ciclo de vida do dado: desde a ingestão (Real-time & Batch), passando pelo processamento estruturado, armazenamento persistente e versionamento de dados.
+Este projeto é uma **plataforma de Engenharia de Dados** para o mercado de criptomoedas. Focada na robustez e automação, a solução gerencia todo o ciclo de vida do dado: desde a ingestão (Real-time & Batch) até o armazenamento estruturado, pronto para consumo por modelos de Machine Learning.
 
-Automatizado para rodar 24/7, ele fornece insights contínuos sobre o mercado cripto, servindo como fundação confiável para experimentação e futuros modelos de Machine Learning.
+Automatizado para rodar 24/7, ele captura variações de mercado com granularidade fina (3x ao dia), criando um dataset histórico valioso.
 
 ## Arquitetura da Solução
 
-A arquitetura segue o padrão **ETL (Extract, Transform, Load)** focado em robustez e auditabilidade.
+A arquitetura segue o padrão **ETL (Extract, Transform, Load)**.
 
 ```text
 ├── Ingestão (Extract)
 │   ├── Client API CoinGecko (Resiliente a Rate Limits e Retries)
 │   ├── Coleta Tempo Real (Top 250 assets)
-│   └── Coleta Histórica (Backfill de 1 ano)
+│   └── Coleta Histórica (Backfill de 1+ ano)
 │
 ├── Processamento (Transform)
 │   ├── Limpeza e Tipagem (Pandas)
-│   ├── Enriquecimento (Cálculo de OHLC on-the-fly)
+│   ├── Enriquecimento (Cálculo de OHLC, Volatilidade)
 │   └── Normalização Temporal
 │
-├── Armazenamento (Load)
-│   └── SQLite (Relacional, indexado por CoinID e Timestamp)
-│
-└── Governança (Data Ops)
-    ├── Versionamento de Dados (DVC + Snapshots Semanais)
-    └── Monitoramento (Alertas de Falha via E-mail)
+└── Armazenamento (Load)
+    └── SQLite (Relacional, indexado por CoinID e Timestamp)
 ```
 
 ## Funcionalidades Principais
@@ -35,38 +31,26 @@ A arquitetura segue o padrão **ETL (Extract, Transform, Load)** focado em robus
 - **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas) via `crontab` (3x/dia).
 - **Modo Histórico**: Capacidade de *backfill* de dados passados (configurável, ex: 365 dias) com controle automático de pausas para respeitar limites da API gratuita.
 
-### 2. Resiliência e Monitoramento (`src/email_alert.py`)
-- **Alerta de Falha**: O pipeline monitora sua própria execução. Caso a coleta retorne 0 registros, um alerta crítico é disparado por e-mail para o administrador, permitindo reação rápida.
+- **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas).
+- **Modo Histórico**: Realiza *backfill* de dados passados (configurável, ex: 365 dias) com gestão inteligente de limites da API.
+- **Automação**: Agendamento via CRON para execução frequente.
 
-### 3. Versionamento de Dados (`src/dvc_versioning.py`)
-- **DVC (Data Version Control)**: Implementação profissional de versionamento.
-    - O banco de dados `cripto.db` é rastreado como um artefato.
-    - Scripts automatizados geram snapshots semanais (Segunda-feira 18:00).
-    - Histórico armazenado em remote local (`dvc_store/`), garantindo reprodutibilidade dos dados de treino.
+### 2. Camada de Dados (`src/database.py`)
 
-## Estrutura do Projeto
+- **Schema Otimizado**: Tabelas indexadas para consultas rápidas de séries temporais.
+- **Enriquecimento On-the-fly**: Capacidade de gerar agregação OHLC (Open, High, Low, Close) e indicadores técnicos (SMA) diretamente na consulta.
 
-A organização reflete um pipeline de produção enxuto:
+### 3. Resiliência e Monitoramento (`src/backup_manager.py`, `src/email_alert.py`)
 
-```text
-/
-├── main.py                 # Orquestrador do ETL (CLI Entrypoint)
-├── requirements.txt        # Dependências (Pandas, DVC, Requests)
-├── data/                   # Dados: cripto.db, logs e dvc_store/
-├── .dvc/                   # Configurações do Data Version Control
-└── src/
-    ├── api_client.py       # Wrapper da API (Request Caching & Retry)
-    ├── data_processor.py   # Lógica de Negócio e Tratamento
-    ├── database.py         # Camada de Persistência (SQLAlchemy/SQLite)
-    ├── dvc_versioning.py   # Script de Snapshot Semanal
-    └── email_alert.py      # Módulo de Notificação de Falhas
-```
+- **Backup Estruturado**: Snapshots semanais do banco `cripto.db` salvos em `data/backups/`. Política de ratenção automática (mantém os últimos 4).
+- **Alerta de Falha**: Monitoramento ativo da ingestão. Se zero registros forem capturados, um e-mail é disparado para o admin.
 
 ## Guia de Instalação e Execução
 
 ### Pré-requisitos
 - Python 3.10+
 - Ambiente Virtual (recomendado)
+- (Opcional) Conta Gmail para alertas
 
 ### 1. Configuração do Ambiente
 
@@ -83,8 +67,10 @@ source .venv/bin/activate  # Linux/Mac
 # Instale as dependências
 pip install -r requirements.txt
 
-# Inicialize o DVC (caso esteja clonando pela primeira vez sem os dados)
-dvc pull
+# Configuração de Alertas (Opcional)
+# Crie um arquivo .env ou exporte as variáveis:
+export EMAIL_USER="seu_email@gmail.com"
+export EMAIL_PASSWORD="sua_senha_de_app"
 ```
 
 ### 2. Configuração de Variáveis (Opcional)
@@ -94,7 +80,7 @@ export EMAIL_USER="seu_email@gmail.com"
 export EMAIL_PASSWORD="sua_senha_de_app"
 ```
 
-### 3. Executando o Pipeline (ETL)
+**Carga Inicial (Histórico - Recomendado):**
 
 **Carga Inicial (Histórico):**
 ```bash
@@ -107,9 +93,21 @@ python main.py --historical --days 365
 python main.py --all
 ```
 
-**Verificar Versionamento:**
-```bash
-dvc status
+**Agendamento Automático (Linux):**
+O pipeline está configurado para rodar 3x ao dia (09:00, 13:00, 18:00).
+Verifique com: `crontab -l`
+
+## Estrutura do Projeto
+
+```text
+/
+├── main.py                 # Orquestrador do ETL (CLI)
+├── requirements.txt        # Dependências (Pandas, Requests)
+├── data/                   # Armazenamento (SQLite + Logs)
+└── src/
+    ├── api_client.py       # Wrapper da API (Request Caching & Retry)
+    ├── data_processor.py   # Lógica de Negócio e Tratamento de Dados
+    └── database.py         # Camada de Persistência (SQLAlchemy/SQLite)
 ```
 
 ## Próximos Passos (Roadmap)
