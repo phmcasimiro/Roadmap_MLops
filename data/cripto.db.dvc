@@ -1,0 +1,5 @@
+outs:
+- md5: 4f1de4002e6f48b9cff9de41792cf8c2
+  size: 4505600
+  hash: md5
+  path: cripto.db

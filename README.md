@@ -2,62 +2,76 @@
 
 ## Visão Geral
 
-Este projeto é uma **plataforma completa de Engenharia de Dados e MLOps** para o mercado de criptomoedas. Diferente de scripts isolados, esta solução integra todo o ciclo de vida do dado: desde a ingestão (Real-time & Batch), passando pelo processamento estruturado, armazenamento persistente, até a visualização analítica interativa.
+Este projeto é uma **plataforma completa de Engenharia de Dados e MLOps** para o mercado de criptomoedas. Diferente de scripts isolados, esta solução integra todo o ciclo de vida do dado: desde a ingestão (Real-time & Batch), passando pelo processamento estruturado, armazenamento persistente e versionamento de dados.
 
-Automatizado para rodar 24/7, ele fornece insights contínuos sobre o mercado cripto, servindo como fundação para futuros modelos de Machine Learning.
+Automatizado para rodar 24/7, ele fornece insights contínuos sobre o mercado cripto, servindo como fundação confiável para experimentação e futuros modelos de Machine Learning.
 
 ## Arquitetura da Solução
 
-A arquitetura segue o padrão **ETL (Extract, Transform, Load)** desacoplado, com uma camada de visualização segregada.
+A arquitetura segue o padrão **ETL (Extract, Transform, Load)** focado em robustez e auditabilidade.
 
 ```text
 ├── Ingestão (Extract)
-│   ├── Client API CoinGecko (Resiliente a Rate Limits)
+│   ├── Client API CoinGecko (Resiliente a Rate Limits e Retries)
 │   ├── Coleta Tempo Real (Top 250 assets)
 │   └── Coleta Histórica (Backfill de 1 ano)
 │
 ├── Processamento (Transform)
 │   ├── Limpeza e Tipagem (Pandas)
-│   ├── Enriquecimento (Calculo de Volatilidade, SMA, MACD)
-│   └── Resampling Temporal (Horário/Diário)
+│   ├── Enriquecimento (Cálculo de OHLC on-the-fly)
+│   └── Normalização Temporal
 │
 ├── Armazenamento (Load)
 │   └── SQLite (Relacional, indexado por CoinID e Timestamp)
 │
-└── Apresentação (Dashboard)
-    ├── Plotly Dash (Web Framework)
-    ├── Análise Comparativa (Séries Temporais)
-    └── Análise Técnica (Candlesticks, Indicadores)
+└── Governança (Data Ops)
+    ├── Versionamento de Dados (DVC + Snapshots Semanais)
+    └── Monitoramento (Alertas de Falha via E-mail)
 ```
 
 ## Funcionalidades Principais
 
-### 1. Motor de Coleta Híbrida (`main.py`)
+### 1. Ingestão Híbrida Inteligente (`main.py`)
+- **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas) via `crontab` (3x/dia).
+- **Modo Histórico**: Capacidade de *backfill* de dados passados (configurável, ex: 365 dias) com controle automático de pausas para respeitar limites da API gratuita.
 
-- **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas).
-- **Modo Histórico**: Realiza *backfill* de dados passados (configurável, ex: 365 dias) com gestão inteligente de limites da API.
-- **Automação**: Agendamento via CRON para execução diária (Data Pipeline automatizado).
+### 2. Resiliência e Monitoramento (`src/email_alert.py`)
+- **Alerta de Falha**: O pipeline monitora sua própria execução. Caso a coleta retorne 0 registros, um alerta crítico é disparado por e-mail para o administrador, permitindo reação rápida.
 
-### 2. Dashboard Analítico V3 (`src/dashboard.py`)
+### 3. Versionamento de Dados (`src/dvc_versioning.py`)
+- **DVC (Data Version Control)**: Implementação profissional de versionamento.
+    - O banco de dados `cripto.db` é rastreado como um artefato.
+    - Scripts automatizados geram snapshots semanais (Segunda-feira 18:00).
+    - Histórico armazenado em remote local (`dvc_store/`), garantindo reprodutibilidade dos dados de treino.
 
-Interface web profissional para exploração de dados:
+## Estrutura do Projeto
 
-- **Sidebar Global**: Controle unificado para seleção de ativos.
-- **Aba Comparativa**: Análise de séries temporais normalizadas, permitindo comparar a performance relativa de múltiplos ativos (Highlight vs Background).
-- **Aba Análise Técnica**: Gráficos de Velas (Candlesticks) com indicadores financeiros (SMA, EMA, MACD) e subplots de Volume.
-- **Responsividade**: Adaptação dinâmica da granulosidade dos dados (Horário vs Diário) baseado no zoom.
+A organização reflete um pipeline de produção enxuto:
+
+```text
+/
+├── main.py                 # Orquestrador do ETL (CLI Entrypoint)
+├── requirements.txt        # Dependências (Pandas, DVC, Requests)
+├── data/                   # Dados: cripto.db, logs e dvc_store/
+├── .dvc/                   # Configurações do Data Version Control
+└── src/
+    ├── api_client.py       # Wrapper da API (Request Caching & Retry)
+    ├── data_processor.py   # Lógica de Negócio e Tratamento
+    ├── database.py         # Camada de Persistência (SQLAlchemy/SQLite)
+    ├── dvc_versioning.py   # Script de Snapshot Semanal
+    └── email_alert.py      # Módulo de Notificação de Falhas
+```
 
 ## Guia de Instalação e Execução
 
 ### Pré-requisitos
-
 - Python 3.10+
 - Ambiente Virtual (recomendado)
 
 ### 1. Configuração do Ambiente
 
 ```bash
-# Clone e entre na pasta
+# Clone o repositório
 git clone <URL_REPO>
 cd Roadmap_MLops
 
@@ -68,65 +82,44 @@ source .venv/bin/activate  # Linux/Mac
 
 # Instale as dependências
 pip install -r requirements.txt
+
+# Inicialize o DVC (caso esteja clonando pela primeira vez sem os dados)
+dvc pull
 ```
 
-### 2. Coleta de Dados (ETL)
+### 2. Configuração de Variáveis (Opcional)
+Para receber alertas de falha por e-mail:
+```bash
+export EMAIL_USER="seu_email@gmail.com"
+export EMAIL_PASSWORD="sua_senha_de_app"
+```
 
-**Carga Inicial (Histórico - Recomendado para Demo):**
+### 3. Executando o Pipeline (ETL)
 
+**Carga Inicial (Histórico):**
 ```bash
 # Coleta 1 ano de histórico para as Top 50 moedas
-# (Atenção: Pode levar alguns minutos devido aos limites da API)
-
-python main.py --historical --days 365 --all
+python main.py --historical --days 365
 ```
 
-**Coleta Tempo Real:**
-
+**Coleta Tempo Real (Manual):**
 ```bash
-# Atualiza os dados das Top 250 moedas
 python main.py --all
 ```
 
-**Agendamento Automático (Linux):**
-O pipeline está configurado para rodar 3x ao dia (09:00, 13:00, 18:00).
-Verifique com: `crontab -l`
-
-### 3. Executando o Dashboard
-
-Para iniciar a interface de visualização:
-
+**Verificar Versionamento:**
 ```bash
-python run_dashboard.py
-```
-
-Acesse no seu navegador: **http://127.0.0.1:8051**
-
-## Estrutura do Projeto
-
-```text
-/
-├── main.py                 # Orquestrador do ETL (CLI)
-├── run_dashboard.py        # Entrypoint do Dashboard
-├── requirements.txt        # Dependências (Pandas, Requests, Dash)
-├── data/                   # Armazenamento (SQLite + Logs)
-└── src/
-    ├── api_client.py       # Wrapper da API (Request Caching & Retry)
-    ├── data_processor.py   # Lógica de Negócio e Tratamento de Dados
-    ├── database.py         # Camada de Persistência (SQLAlchemy/SQLite)
-    └── dashboard.py        # Aplicação Dash (Callbacks & Layout)
+dvc status
 ```
 
 ## Próximos Passos (Roadmap)
 
-- [ ] **Dockerização**: Containerizar a aplicação para deploy simplificado.
-- [ ] **Data Quality**: Implementar testes de qualidade de dados (Great Expectations).
-- [ ] **Machine Learning**: Treinar modelos de previsão de séries temporais (Prophet/ARIMA).
-- [ ] **Cloud Deploy**: Migração para AWS/GCP e banco Postgres.
+- [ ] **Data Quality**: Implementar testes de expectativa sobre os dados (Great Expectations).
+- [ ] **Machine Learning**: Treinar modelos de previsão de séries temporais usando os dados versionados.
+- [ ] **Cloud Storage**: Migrar o remote do DVC para AWS S3 ou Google Drive.
+- [ ] **Docker**: Containerizar o pipeline para deploy em orquestradores (Airflow/K8s).
 
 ---
-**Autor:** Pedro Casimiro  
-
+**Autor:** Pedro Casimiro
 [Projeto Roadmap MLOps](https://github.com/pedrocasimiro1/Roadmap_MLops)
-
 [Linkedin](https://www.linkedin.com/in/phmcasimiro/)
