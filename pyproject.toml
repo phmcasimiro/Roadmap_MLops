@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roadmap_mlops"
+version = "0.1.0"
+authors = [
+  { name="Pedro Casimiro", email="phmcasimiro@gmail.com" },
+]
+description = "Plataforma de Engenharia de Dados e MLOps para Criptomoedas"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0.0",
+    "requests>=2.31.0",
+    "dvc>=3.0.0",
+    "openpyxl",
+    "python-dotenv"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "isort",
+    "flake8",
+    "mypy"
+]

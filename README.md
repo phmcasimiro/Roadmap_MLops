@@ -49,7 +49,8 @@ A arquitetura segue o padrão **ETL (Extract, Transform, Load)** focado em robus
 ```text
 /
 ├── main.py                 # Orquestrador do ETL (CLI Entrypoint)
-├── requirements.txt        # Dependências
+├── pyproject.toml          # Configuração do Projeto e Dependências
+├── requirements.txt        # Dependências (Legado/Compatibilidade)
 ├── data/                   # Dados: cripto.db, logs e dvc_store/
 ├── .dvc/                   # Configurações do DVC
 └── src/
@@ -74,7 +75,13 @@ git clone <URL_REPO>
 cd Roadmap_MLops
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+# Instale as dependências (via pyproject.toml)
+pip install -e .
+
+# Ou via legacy requirement:
+# pip install -r requirements.txt
+
+# Inicialize o DVC (caso esteja clonando pela primeira vez sem os dados)
 dvc pull
 ```
 
