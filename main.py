@@ -23,6 +23,8 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from src.api_client import CoinGeckoClient  # Cliente para coletar dados da API
 from src.data_processor import CryptoDataProcessor  # Processador de dados
 from src.database import CryptoDatabase  # Banco de dados
+from src.email_alert import send_alert  # Alertas
+import pandera as pa  # Validação
 
 
 def parse_arguments():
@@ -99,11 +101,31 @@ def collect_realtime_data(args, client, db):
         print("❌ Falha ao coletar dados da API")
         return False
 
-        time.sleep(0.5)
+    # Processamento
+    try:
+        processor = CryptoDataProcessor()
+        df = processor.process_market_data(raw_data)
 
-    print("-" * 70)
-    print(f"✅ Coleta histórica finalizada. Total de registros: {total_saved}")
-    return True
+        # Armazenamento
+        total_saved = db.insert_dataframe(df)
+
+        print("-" * 70)
+        print(f"✅ Coleta em tempo real finalizada. Registros salvos: {total_saved}")
+
+        # Validação de Ingestão (Alerting)
+        if total_saved == 0:
+            print("⚠️ AVISO: Nenhum registro novo foi salvo.")
+            send_alert(
+                "Falha na Ingestão (0 Registros)",
+                "O pipeline rodou mas nenhum dado foi salvo no banco. Verifique logs.",
+                "phmcasimiro@gmail.com",
+            )
+
+        return True
+
+    except Exception as e:
+        print(f"❌ Erro no processamento: {e}")
+        raise e
 
 
 def main():
@@ -156,12 +178,19 @@ def main():
         print("\n\n⚠️  Processo interrompido pelo usuário")
         return 130
 
+    except pa.errors.SchemaErrors as e:
+        error_msg = f"Violação de Contrato de Dados (Pandera):\n{e.failure_cases}"
+        print(f"\n❌ ERRO DE VALIDAÇÃO: {error_msg}")
+        send_alert("Falha de Validação (Schema)", error_msg, "phmcasimiro@gmail.com")
+        return 1
+
     except Exception as e:
         print(f"\n❌ ERRO CRÍTICO: {e}")
         if args.verbose:
             import traceback
 
             traceback.print_exc()
+        send_alert("Erro Crítico no Pipeline", str(e), "phmcasimiro@gmail.com")
         return 1
 
 

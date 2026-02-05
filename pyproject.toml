@@ -16,7 +16,8 @@ dependencies = [
     "requests>=2.31.0",
     "dvc>=3.0.0",
     "openpyxl",
-    "python-dotenv"
+    "python-dotenv",
+    "pandera"
 ]
 
 [project.optional-dependencies]
