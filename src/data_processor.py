@@ -79,6 +79,18 @@ class CryptoDataProcessor:
         # Adicionar métricas calculadas
         df = CryptoDataProcessor._add_calculated_metrics(df)
 
+        # Validação de Contrato de Dados (Pandera)
+        try:
+            from src.schemas import MarketDataSchema
+
+            print("🛡️ Validando contrato de dados...")
+            MarketDataSchema.validate(df, lazy=True)
+            print("✅ Contrato de dados validado com sucesso!")
+        except Exception as e:
+            # Re-raise para ser capturado no main
+            print(f"❌ Violação de contrato de dados detectada: {e}")
+            raise e
+
         print(f"✅ Processamento concluído! Shape: {df.shape}")
         return df
 
