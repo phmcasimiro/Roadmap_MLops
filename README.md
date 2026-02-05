@@ -2,9 +2,9 @@
 
 ## Visão Geral
 
-Este projeto é uma **plataforma completa de Engenharia de Dados e MLOps** para o mercado de criptomoedas. Diferente de scripts isolados, esta solução integra todo o ciclo de vida do dado: desde a ingestão (Real-time & Batch), passando pelo processamento estruturado, armazenamento persistente, até o versionamento de dados.
+Este projeto foi desenvolvido visando aplicar **conhecimentos de Engenharia de Dados e MLOps** no contexto do mercado de criptomoedas. Esta solução buscou integrar o início de um Pipeline de Dados: iniciando pela ingestão de dados (Real-time & Batch), passando pelo processamento estruturado, armazenamento persistente, e chegando ao versionamento de dados.
 
-Automatizado para rodar 24/7, ele fornece insights contínuos sobre o mercado cripto, servindo como fundação para futuros modelos de Machine Learning.
+Automatizado para rodar 24/7, ele fornece dados contínuos sobre o mercado cripto, servindo como fundação para futuros modelos de Machine Learning e dashboards de visualização.
 
 ## Arquitetura da Solução
 
