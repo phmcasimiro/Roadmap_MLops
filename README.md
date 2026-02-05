@@ -67,7 +67,9 @@ graph TD
 **Explicação detalhada do fluxo de dados:**
 
 1.  **Ingestão (`src/api_client.py` → `main.py`)**:
+
     *   Embora seja o `main.py` quem invoque o cliente, o dado (JSON bruto) sai da API, passa pelo Client (que trata retries/erros) e é retornado para o `main.py`.
+
     *   Nesse momento, o `main.py` segura a "batata quente" (o dado bruto) na memória.
 
 2.  **Qualidade (`main.py` → `Pandera Check`)**:
