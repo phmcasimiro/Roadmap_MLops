@@ -83,13 +83,13 @@ def parse_arguments():
 
 def collect_realtime_data(args, client, db):
     """Executa fluxo de coleta em tempo real."""
-    print("\n📡 ETAPA 1: Coletando dados em TEMPO REAL...")
+    print("\n[ETAPA 1] Coletando dados em TEMPO REAL...")
     print("-" * 70)
 
     limit = args.limit
     if args.all:
         print(
-            "⚠️  Modo --all ativado. Limitando a 250 moedas (máximo por página) para demo rápida."
+            "[AVISO] Modo --all ativado. Limitando a 250 moedas (máximo por página) para demo rápida."
         )
         # Em tempo real, a paginação seria necessária para pegar TODOS.
         # Para simplificar, vamos pegar o max de uma página.
@@ -98,7 +98,7 @@ def collect_realtime_data(args, client, db):
     raw_data = client.get_top_cryptocurrencies(limit=limit)
 
     if not raw_data:
-        print("❌ Falha ao coletar dados da API")
+        print("[ERRO] Falha ao coletar dados da API")
         return False
 
     # Processamento
@@ -110,11 +110,13 @@ def collect_realtime_data(args, client, db):
         total_saved = db.insert_dataframe(df)
 
         print("-" * 70)
-        print(f"✅ Coleta em tempo real finalizada. Registros salvos: {total_saved}")
+        print(
+            f"[SUCESSO] Coleta em tempo real finalizada. Registros salvos: {total_saved}"
+        )
 
         # Validação de Ingestão (Alerting)
         if total_saved == 0:
-            print("⚠️ AVISO: Nenhum registro novo foi salvo.")
+            print("[AVISO] Nenhum registro novo foi salvo.")
             send_alert(
                 "Falha na Ingestão (0 Registros)",
                 "O pipeline rodou mas nenhum dado foi salvo no banco. Verifique logs.",
@@ -124,7 +126,7 @@ def collect_realtime_data(args, client, db):
         return True
 
     except Exception as e:
-        print(f"❌ Erro no processamento: {e}")
+        print(f"[ERRO] Erro no processamento: {e}")
         raise e
 
 
@@ -133,9 +135,9 @@ def main():
     args = parse_arguments()
 
     print("=" * 70)
-    print("🚀 SISTEMA DE COLETA DE DADOS DE CRIPTOMOEDAS")
+    print("SISTEMA DE COLETA DE DADOS DE CRIPTOMOEDAS")
     print("=" * 70)
-    print(f"📊 Configuração:")
+    print(f"Configuracao:")
     print(f"   - Modo: {'HISTÓRICO' if args.historical else 'TEMPO REAL'}")
     print(
         f"   - Limite moedas: {args.limit if not args.all else 'TODAS (Top 250 demo)'}"
@@ -156,7 +158,7 @@ def main():
 
         if success:
             # Estatísticas finais
-            print("\n📊 ESTATÍSTICAS DO BANCO DE DADOS:")
+            print("\nESTATISTICAS DO BANCO DE DADOS:")
             print("-" * 70)
             stats = db.get_statistics()
             try:
@@ -168,24 +170,24 @@ def main():
                 print("   Dados insuficientes para estatísticas.")
 
             print("\n" + "=" * 70)
-            print("✅ PROCESSO CONCLUÍDO COM SUCESSO!")
+            print("[SUCESSO] PROCESSO CONCLUIDO!")
             print("=" * 70)
             return 0
         else:
             return 1
 
     except KeyboardInterrupt:
-        print("\n\n⚠️  Processo interrompido pelo usuário")
+        print("\n\n[AVISO] Processo interrompido pelo usuário")
         return 130
 
     except pa.errors.SchemaErrors as e:
         error_msg = f"Violação de Contrato de Dados (Pandera):\n{e.failure_cases}"
-        print(f"\n❌ ERRO DE VALIDAÇÃO: {error_msg}")
+        print(f"\n[ERRO DE VALIDACAO] {error_msg}")
         send_alert("Falha de Validação (Schema)", error_msg, "phmcasimiro@gmail.com")
         return 1
 
     except Exception as e:
-        print(f"\n❌ ERRO CRÍTICO: {e}")
+        print(f"\n[ERRO CRITICO] {e}")
         if args.verbose:
             import traceback
 

@@ -35,7 +35,7 @@ class CryptoDataProcessor:
         if not raw_data:
             raise ValueError("raw_data não pode estar vazio")
 
-        print(f"🔄 Processando {len(raw_data)} registros...")
+        print(f"[PROCESSANDO] Processando {len(raw_data)} registros...")
 
         # Selecionar campos relevantes
         processed_data = []
@@ -83,15 +83,15 @@ class CryptoDataProcessor:
         try:
             from src.schemas import MarketDataSchema
 
-            print("🛡️ Validando contrato de dados...")
+            print("[VALIDACAO] Validando contrato de dados...")
             MarketDataSchema.validate(df, lazy=True)
-            print("✅ Contrato de dados validado com sucesso!")
+            print("[SUCESSO] Contrato de dados validado com sucesso!")
         except Exception as e:
             # Re-raise para ser capturado no main
-            print(f"❌ Violação de contrato de dados detectada: {e}")
+            print(f"[ERRO] Violação de contrato de dados detectada: {e}")
             raise e
 
-        print(f"✅ Processamento concluído! Shape: {df.shape}")
+        print(f"[SUCESSO] Processamento concluído! Shape: {df.shape}")
         return df
 
     @staticmethod
@@ -164,24 +164,38 @@ class CryptoDataProcessor:
             pd.DataFrame: DataFrame com métricas adicionais
         """
         # Volatilidade 24h (range / preço atual)
+        # Range é a diferença entre o preço máximo e o preço mínimo em um determinado período
+        # Se o preço atual for maior que o preço máximo, o resultado será positivo (acima do recorde)
+        # Se o preço atual for menor que o preço mínimo, o resultado será negativo (abaixo do recorde)    
         if all(col in df.columns for col in ["high_24h", "low_24h", "current_price"]):
             df["volatility_24h"] = (
                 (df["high_24h"] - df["low_24h"]) / df["current_price"] * 100
             )
 
+        # ATH é o preço máximo que a criptomoeda já atingiu
         # Distância do ATH (%)
+        # Se o preço atual for maior que o ATH, o resultado será positivo (acima do recorde)
+        # Se o preço atual for menor que o ATH, o resultado será negativo (abaixo do recorde)
         if all(col in df.columns for col in ["ath", "current_price"]):
             df["distance_from_ath"] = (
                 (df["current_price"] - df["ath"]) / df["ath"] * 100
             )
 
+        # ATL é o preço mínimo que a criptomoeda já atingiu
         # Distância do ATL (%)
+        # Se o preço atual for maior que o ATL, o resultado será negativo (abaixo do recorde)
+        # Se o preço atual for menor que o ATL, o resultado será positivo (acima do recorde)
         if all(col in df.columns for col in ["atl", "current_price"]):
             df["distance_from_atl"] = (
                 (df["current_price"] - df["atl"]) / df["atl"] * 100
             )
 
+
+        # O volume é o número de transações em um determinado período
+        # A capitalização de mercado é o valor total de todas as moedas em 
         # Volume/Market Cap ratio
+        # Se o volume for maior que a capitalização de mercado, o resultado será positivo (acima do recorde)
+        # Se o volume for menor que a capitalização de mercado, o resultado será negativo (abaixo do recorde)
         if all(col in df.columns for col in ["total_volume", "market_cap"]):
             df["volume_to_mcap_ratio"] = df["total_volume"] / df["market_cap"]
 
@@ -326,13 +340,13 @@ def main():
     processor = CryptoDataProcessor()
     df = processor.process_market_data(sample_data)
 
-    print("\n📊 DataFrame Processado:")
+    print("\nDataFrame Processado:")
     print(df.info())
 
-    print("\n📈 Primeiras linhas:")
+    print("\nPrimeiras linhas:")
     print(df.head())
 
-    print("\n📉 Estatísticas:")
+    print("\nEstatísticas:")
     print(processor.get_summary_statistics(df))
 
 
