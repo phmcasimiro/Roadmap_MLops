@@ -1,47 +1,76 @@
 """
 Gerenciador de banco de dados SQLite para criptomoedas.
 
-Este módulo implementa a persistência de dados em banco SQLite
-com operações CRUD e queries otimizadas.
+Este módulo é responsável por toda a camada de persistência de dados do projeto.
+Ele implementa o padrão DAO (Data Access Object) simplificado para interagir
+com o banco SQLite, oferecendo métodos para inserir, consultar e gerenciar
+os dados financeiros coletados.
 """
 
 import sqlite3
 import pandas as pd
-from typing import Optional, List
+from typing import Optional, List, Dict
 from pathlib import Path
 from datetime import datetime
 from contextlib import contextmanager
 
 
 class CryptoDatabase:
-    """Gerenciador de banco de dados para criptomoedas."""
+    """
+    Classe principal para gerenciamento do banco de dados SQLite.
+
+    Gerencia conexões, cria tabelas automaticamente e fornece métodos
+    de alto nível para operações de ETL (Extract, Transform, Load).
+    """
 
     def __init__(self, db_path: str = "data/cripto.db"):
         """
-        Inicializa conexão com banco de dados.
+        Inicializa a instância do banco de dados.
+
+        Ao instanciar, verificamos se o diretório existe e garantimos
+        que a estrutura de tabelas esteja criada.
 
         Args:
-            db_path (str): Caminho para o arquivo do banco SQLite
+            db_path (str): Caminho relativo ou absoluto para o arquivo .db.
+                           Padrão: 'data/cripto.db'.
         """
         self.db_path = Path(db_path)
+
+        # Garante que o diretório pai exista (ex: 'data/')
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Inicializa o schema do banco (tabelas e índices)
         self._create_tables()
 
     @contextmanager
     def _get_connection(self):
-        """Context manager para conexão com banco."""
+        """
+        Context Manager para gerenciar conexões com o banco de forma segura.
+
+        Garanti que a conexão seja fechada automaticamente e que transações
+        sejam commitadas em caso de sucesso ou revertidas (rollback) em caso de erro.
+
+        Yields:
+            sqlite3.Connection: Objeto de conexão ativa.
+        """
         conn = sqlite3.connect(self.db_path)
         try:
             yield conn
-            conn.commit()
+            conn.commit()  # Persiste as mudanças se não houver erro
         except Exception as e:
-            conn.rollback()
+            conn.rollback()  # Desfaz mudanças se ocorrer erro
             raise e
         finally:
-            conn.close()
+            conn.close()  # Fecha a conexão sempre
 
     def _create_tables(self):
-        """Cria tabelas se não existirem."""
+        """
+        Cria a estrutura do banco de dados (DDL) se ela não existir.
+
+        Define a tabela 'cryptocurrency_data' e seus índices para performance.
+        A restrição UNIQUE(coin_id, collected_at) impede duplicidade de registros
+        para a mesma moeda no mesmo timestamp.
+        """
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS cryptocurrency_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,6 +101,7 @@ class CryptoDatabase:
             UNIQUE(coin_id, collected_at)
         );
         
+        -- Índices para acelerar consultas comuns
         CREATE INDEX IF NOT EXISTS idx_coin_id 
         ON cryptocurrency_data(coin_id);
         
@@ -85,61 +115,65 @@ class CryptoDatabase:
         with self._get_connection() as conn:
             conn.executescript(create_table_sql)
 
-        print(f"✅ Banco de dados inicializado: {self.db_path}")
+        print(f"[INFO] Banco de dados inicializado: {self.db_path}")
 
     def insert_dataframe(self, df: pd.DataFrame) -> int:
         """
-        Insere DataFrame no banco de dados.
+        Insere um DataFrame do Pandas diretamente no banco de dados.
+
+        Realiza o mapeamento de colunas e tratamento de tipos antes da inserção.
 
         Args:
-            df (pd.DataFrame): DataFrame com dados processados
+            df (pd.DataFrame): DataFrame contendo os dados processados.
 
         Returns:
-            int: Número de registros inseridos
-
-        Example:
-            >>> db = CryptoDatabase()
-            >>> rows_inserted = db.insert_dataframe(df)
+            int: Número de registros efetivamente inseridos.
         """
         if df.empty:
-            print("⚠️  DataFrame vazio, nada a inserir")
+            print("[AVISO] DataFrame vazio, nada a inserir")
             return 0
 
-        # Renomear coluna 'id' para 'coin_id' para evitar conflito
+        # Prepara o DataFrame para inserção (cópia para não alterar o original)
         df_to_insert = df.copy()
+
+        # Mapeia 'id' da API para 'coin_id' do banco
         if "id" in df_to_insert.columns:
             df_to_insert.rename(columns={"id": "coin_id"}, inplace=True)
 
-        # Converter timestamps para string
+        # Converte datas para string (SQLite não tem tipo DATE nativo)
         for col in df_to_insert.select_dtypes(include=["datetime64"]).columns:
             df_to_insert[col] = df_to_insert[col].astype(str)
 
         try:
             with self._get_connection() as conn:
+                # 'if_exists="append"' adiciona aos dados existentes
                 rows_inserted = df_to_insert.to_sql(
                     "cryptocurrency_data", conn, if_exists="append", index=False
                 )
 
-            print(f"✅ {rows_inserted} registros inseridos no banco")
+            print(f"[SUCESSO] {rows_inserted} registros inseridos no banco")
             return rows_inserted
 
         except sqlite3.IntegrityError as e:
-            print(f"⚠️  Alguns registros já existem: {e}")
+            # Captura violação da constraint UNIQUE (dados duplicados)
+            print(f"[AVISO] Alguns registros já existem e foram ignorados: {e}")
             return 0
 
         except Exception as e:
-            print(f"❌ Erro ao inserir dados: {e}")
+            print(f"[ERRO] Erro ao inserir dados: {e}")
             raise
 
     def get_latest_data(self, limit: int = 10) -> pd.DataFrame:
         """
-        Obtém os dados mais recentes do banco.
+        Recupera os registros mais recentes inseridos no banco.
+
+        Útil para inspeção rápida ou para alimentar dashboards em tempo real.
 
         Args:
-            limit (int): Número máximo de registros
+            limit (int): Quantidade máxima de registros a retornar.
 
         Returns:
-            pd.DataFrame: DataFrame com dados mais recentes
+            pd.DataFrame: Tabela contendo os últimos registros, ordenados por data.
         """
         query = """
         SELECT * FROM cryptocurrency_data
@@ -156,15 +190,16 @@ class CryptoDatabase:
         self, coin_id: str, days: int = 7, enrich_data: bool = False
     ) -> pd.DataFrame:
         """
-        Obtém histórico de uma criptomoeda específica.
+        Busca o histórico de preços de uma moeda específica.
 
         Args:
-            coin_id (str): ID da criptomoeda
-            days (int): Número de dias de histórico
-            enrich_data (bool): Se True, resurn OHLC diário e médias móveis
+            coin_id (str): ID da criptomoeda (ex: 'bitcoin').
+            days (int): Quantos dias atrás buscar.
+            enrich_data (bool): Se True, aplica reamostragem diária (OHLC) e
+                                calcula médias móveis (SMA).
 
         Returns:
-            pd.DataFrame: Histórico da criptomoeda
+            pd.DataFrame: Histórico filtrado e opcionalmente enriquecido.
         """
         query = """
         SELECT * FROM cryptocurrency_data
@@ -172,7 +207,6 @@ class CryptoDatabase:
         AND collected_at >= datetime('now', '-' || ? || ' days')
         ORDER BY collected_at ASC
         """
-        # Nota: ORDER BY ASC é importante para cálculo de rolling window e candles
 
         with self._get_connection() as conn:
             df = pd.read_sql_query(query, conn, params=(coin_id, days))
@@ -180,120 +214,52 @@ class CryptoDatabase:
         if df.empty:
             return df
 
-        # Converter string para datetime
+        # Garante que a coluna de data seja datetime (não string)
         df["collected_at"] = pd.to_datetime(df["collected_at"])
 
         if enrich_data:
-            # Configurar index
+            # --- Lógica de Enriquecimento de Dados (Feature Engineering) ---
+
             df.set_index("collected_at", inplace=True)
 
-            # Resampling Diário (OHLCV)
-            # Como a coleta pode variar, o resample garante consistência diária
+            # Resampling: Transforma dados irregulares em barras diárias (Day Candles)
+            # 'D' = Frequência Diária
             df_enriched = df.resample("D").agg(
                 {
                     "current_price": [
-                        "first",
-                        "max",
-                        "min",
-                        "last",
-                    ],  # Open, High, Low, Close
-                    "total_volume": "max",  # Volume do dia
+                        "first",  # Open
+                        "max",  # High
+                        "min",  # Low
+                        "last",  # Close
+                    ],
+                    "total_volume": "max",
                 }
             )
 
-            # Aplanar colunas MultiIndex
+            # Renomeia colunas para padrão financeiro (OHLC)
             df_enriched.columns = ["open", "high", "low", "close", "volume"]
 
-            # Preencher dias sem coleta (se houver buracos, usa ffill para não quebrar gráfico)
+            # Preenchimento de falhas (Forward Fill): Copia o valor do dia anterior
+            # se houver um dia sem coleta dados.
             df_enriched.fillna(method="ffill", inplace=True)
 
-            # Calcular Indicadores Técnicos
+            # Médias Móveis Simples (SMA)
             df_enriched["sma_50"] = df_enriched["close"].rolling(window=50).mean()
             df_enriched["sma_200"] = df_enriched["close"].rolling(window=200).mean()
 
-            # Resetar index para retornar coluna de data
             df_enriched.reset_index(inplace=True)
-
             return df_enriched
-
-        return df
-
-    def get_top_by_market_cap(
-        self, limit: int = 10, date: Optional[str] = None
-    ) -> pd.DataFrame:
-        """
-        Obtém top criptomoedas por capitalização de mercado.
-
-        Args:
-            limit (int): Número de criptomoedas
-            date (str): Data específica (formato ISO) ou None para mais recente
-
-        Returns:
-            pd.DataFrame: Top criptomoedas
-        """
-        if date:
-            query = """
-            SELECT * FROM cryptocurrency_data
-            WHERE DATE(collected_at) = DATE(?)
-            ORDER BY market_cap_rank ASC
-            LIMIT ?
-            """
-            params = (date, limit)
-        else:
-            query = """
-            SELECT * FROM (
-                SELECT *, ROW_NUMBER() OVER (
-                    PARTITION BY coin_id 
-                    ORDER BY collected_at DESC
-                ) as rn
-                FROM cryptocurrency_data
-            )
-            WHERE rn = 1
-            ORDER BY market_cap_rank ASC
-            LIMIT ?
-            """
-            params = (limit,)
-
-        with self._get_connection() as conn:
-            df = pd.read_sql_query(query, conn, params=params)
-
-        return df
-
-    def get_price_changes(self, min_change_pct: float = 5.0) -> pd.DataFrame:
-        """
-        Obtém criptomoedas com mudança de preço significativa.
-
-        Args:
-            min_change_pct (float): Mudança mínima percentual (absoluta)
-
-        Returns:
-            pd.DataFrame: Criptomoedas com mudanças significativas
-        """
-        query = """
-        SELECT * FROM (
-            SELECT *, ROW_NUMBER() OVER (
-                PARTITION BY coin_id 
-                ORDER BY collected_at DESC
-            ) as rn
-            FROM cryptocurrency_data
-        )
-        WHERE rn = 1
-        AND ABS(price_change_percentage_24h) >= ?
-        ORDER BY ABS(price_change_percentage_24h) DESC
-        """
-
-        with self._get_connection() as conn:
-            df = pd.read_sql_query(query, conn, params=(min_change_pct,))
 
         return df
 
     def get_statistics(self) -> dict:
         """
-        Obtém estatísticas gerais do banco de dados.
+        Calcula estatísticas gerais sobre o estado do banco de dados.
 
         Returns:
-            dict: Estatísticas do banco
+            dict: Dicionário contendo contagens, datas e médias.
         """
+        # Dicionário de queries SQL analíticas
         queries = {
             "total_records": "SELECT COUNT(*) as count FROM cryptocurrency_data",
             "unique_coins": "SELECT COUNT(DISTINCT coin_id) as count FROM cryptocurrency_data",
@@ -314,19 +280,20 @@ class CryptoDatabase:
         with self._get_connection() as conn:
             for key, query in queries.items():
                 result = pd.read_sql_query(query, conn)
+                # Converte o resultado (Series) para dicionário simples
                 stats[key] = result.iloc[0].to_dict()
 
         return stats
 
     def delete_old_data(self, days_to_keep: int = 30) -> int:
         """
-        Remove dados antigos do banco.
+        Rotina de limpeza: Remove registros mais antigos que X dias.
 
         Args:
-            days_to_keep (int): Número de dias a manter
+            days_to_keep (int): Horizonte de tempo para manter os dados.
 
         Returns:
-            int: Número de registros removidos
+            int: Quantidade de linhas deletadas.
         """
         query = """
         DELETE FROM cryptocurrency_data
@@ -337,16 +304,18 @@ class CryptoDatabase:
             cursor = conn.execute(query, (days_to_keep,))
             rows_deleted = cursor.rowcount
 
-        print(f"🗑️  {rows_deleted} registros antigos removidos")
+        print(f"[INFO] {rows_deleted} registros antigos removidos")
         return rows_deleted
 
 
 def main():
-    """Função de teste do módulo."""
-    # Criar banco de teste
+    """Função para teste unitário manual da classe."""
+    print("Iniciando teste de banco de dados...")
+
+    # Usa um banco temporário para não sujar o principal
     db = CryptoDatabase("data/test_cripto.db")
 
-    # Dados de exemplo
+    # Criação de dados fictícios (Mock)
     sample_df = pd.DataFrame(
         [
             {
@@ -361,17 +330,17 @@ def main():
         ]
     )
 
-    # Inserir dados
+    # Teste de Inserção
     db.insert_dataframe(sample_df)
 
-    # Buscar dados
+    # Teste de Leitura
     latest = db.get_latest_data(limit=5)
-    print("\n📊 Dados mais recentes:")
+    print("\nDados mais recentes:")
     print(latest)
 
-    # Estatísticas
+    # Teste de Estatísticas
     stats = db.get_statistics()
-    print("\n📈 Estatísticas do banco:")
+    print("\nEstatísticas do banco:")
     for key, value in stats.items():
         print(f"  {key}: {value}")
 
