@@ -205,3 +205,4 @@ python src/dvc_versioning.py
 - [ ] **Dockerização**: Containerizar a aplicação.
 - [ ] **Data Quality**: Great Expectations.
 - [ ] **Cloud**: S3 Remote e Postgres.
+ 
