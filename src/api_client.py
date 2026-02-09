@@ -6,9 +6,12 @@ preços de criptomoedas em tempo real e históricos. Ele gerencia sessões HTTP,
 timeouts, retries básicos e respeita os limites de requisição da API (Rate Limiting).
 """
 
+import time
 import requests
 from typing import Dict, List, Optional
-import time
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class CoinGeckoClient:
@@ -43,27 +46,13 @@ class CoinGeckoClient:
         self.session.headers.update(
             {"Accept": "application/json", "User-Agent": "CryptoDataCollector/1.0"}
         )
+        logger.info(f"Cliente CoinGecko inicializado com timeout de {timeout}s")
 
-    def get_top_cryptocurrencies(self, limit: int = 10, vs_currency: str = "usd") -> Optional[List[Dict]]:
+    def get_top_cryptocurrencies(
+        self, limit: int = 10, vs_currency: str = "usd"
+    ) -> Optional[List[Dict]]:
         """
         Obtém uma lista das principais criptomoedas ordenadas por capitalização de mercado.
-
-        Esta função consulta o endpoint '/coins/markets' da API.
-
-        Args:
-            limit (int): Número máximo de criptomoedas para retornar (ex: Top 10, Top 50).
-            vs_currency (str): A moeda fiduciária de referência para os preços (ex: 'usd', 'brl').
-
-        Returns:
-            Optional[List[Dict]]:
-                - Uma lista de dicionários contendo os dados de mercado se a chamada for bem-sucedida.
-                - None se ocorrer qualquer erro de conexão ou decodificação.
-
-        Exemplo de Retorno:
-            [
-                {'id': 'bitcoin', 'symbol': 'btc', 'current_price': 50000.0, ...},
-                {'id': 'ethereum', 'symbol': 'eth', 'current_price': 3000.0, ...}
-            ]
         """
         endpoint = f"{self.BASE_URL}/coins/markets"
 
@@ -78,7 +67,7 @@ class CoinGeckoClient:
         }
 
         try:
-            print(f"Buscando top {limit} criptomoedas...")
+            logger.info(f"Buscando top {limit} criptomoedas...")
 
             # Realiza a requisição GET
             response = self.session.get(endpoint, params=params, timeout=self.timeout)
@@ -87,39 +76,34 @@ class CoinGeckoClient:
             response.raise_for_status()
 
             data = response.json()
-            print(f"{len(data)} criptomoedas obtidas com sucesso!")
+            logger.info(f"{len(data)} criptomoedas obtidas com sucesso!")
             return data
 
         except requests.exceptions.Timeout:
-            print(f"Erro: Timeout apos {self.timeout} segundos. O servidor demorou muito para responder.")
+            logger.error(
+                f"Timeout apos {self.timeout} segundos. O servidor demorou muito para responder."
+            )
             return None
 
         except requests.exceptions.HTTPError as e:
-            print(f"Erro HTTP: {e}. Verifique se a URL ou parametros estao corretos.")
+            logger.error(
+                f"Erro HTTP: {e}. Verifique se a URL ou parametros estao corretos."
+            )
             return None
 
         except requests.exceptions.RequestException as e:
             # Captura qualquer outro erro relacionado a biblioteca requests (ex: erro de DNS, conexão recusada)
-            print(f"Erro na requisicao: {e}")
+            logger.error(f"Erro na requisicao: {e}")
             return None
 
         except ValueError as e:
             # Captura erros de decodificação JSON (ex: resposta vazia ou malformada)
-            print(f"Erro ao decodificar JSON: {e}")
+            logger.error(f"Erro ao decodificar JSON: {e}")
             return None
 
     def get_cryptocurrency_by_id(self, coin_id: str) -> Optional[Dict]:
         """
         Obtém dados detalhados de uma única criptomoeda específica pelo seu ID.
-
-        Utiliza o endpoint '/coins/{id}'.
-
-        Args:
-            coin_id (str): O ID único da moeda na CoinGecko (ex: 'bitcoin', 'ethereum').
-                           Nota: O ID pode ser diferente do símbolo (ex: 'binancecoin' vs 'BNB').
-
-        Returns:
-            Optional[Dict]: Dicionário com os dados detalhados ou None em caso de erro.
         """
         endpoint = f"{self.BASE_URL}/coins/{coin_id}"
 
@@ -133,16 +117,16 @@ class CoinGeckoClient:
         }
 
         try:
-            print(f"Buscando dados de {coin_id}...")
+            logger.info(f"Buscando dados de {coin_id}...")
             response = self.session.get(endpoint, params=params, timeout=self.timeout)
             response.raise_for_status()
 
             data = response.json()
-            print(f"Dados de {coin_id} obtidos!")
+            logger.info(f"Dados de {coin_id} obtidos!")
             return data
 
         except requests.exceptions.RequestException as e:
-            print(f"Erro ao buscar detalhes de {coin_id}: {e}")
+            logger.error(f"Erro ao buscar detalhes de {coin_id}: {e}")
             return None
 
     def get_coin_market_chart_range(

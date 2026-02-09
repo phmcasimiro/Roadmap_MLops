@@ -13,19 +13,23 @@ from typing import Optional, List, Dict
 from pathlib import Path
 from datetime import datetime
 from contextlib import contextmanager
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class CryptoDatabase:
     """
-    Classe principal para gerenciamento do banco de dados SQLite.
+    Gerenciador de Banco de Dados SQLite.
 
-    Gerencia conexões, cria tabelas automaticamente e fornece métodos
-    de alto nível para operações de ETL (Extract, Transform, Load).
+    Responsável por criar a estrutura de tabelas, inserir dados e
+    realizar consultas. Utiliza o padrão Context Manager para
+    gerenciar conexões com segurança.
     """
 
     def __init__(self, db_path: str = "data/cripto.db"):
         """
-        Inicializa a instância do banco de dados.
+        Inicializa a conexão com o banco de dados.
 
         Ao instanciar, verificamos se o diretório existe e garantimos
         que a estrutura de tabelas esteja criada.
@@ -114,8 +118,7 @@ class CryptoDatabase:
 
         with self._get_connection() as conn:
             conn.executescript(create_table_sql)
-
-        print(f"[INFO] Banco de dados inicializado: {self.db_path}")
+        logger.info("Tabelas verificadas/criadas com sucesso.")
 
     def insert_dataframe(self, df: pd.DataFrame) -> int:
         """
@@ -130,7 +133,7 @@ class CryptoDatabase:
             int: Número de registros efetivamente inseridos.
         """
         if df.empty:
-            print("[AVISO] DataFrame vazio, nada a inserir")
+            logger.warning("DataFrame vazio, nada a inserir.")
             return 0
 
         # Prepara o DataFrame para inserção (cópia para não alterar o original)
@@ -151,17 +154,17 @@ class CryptoDatabase:
                     "cryptocurrency_data", conn, if_exists="append", index=False
                 )
 
-            print(f"[SUCESSO] {rows_inserted} registros inseridos no banco")
+            logger.info(f"{rows_inserted} registros inseridos no banco")
             return rows_inserted
 
         except sqlite3.IntegrityError as e:
             # Captura violação da constraint UNIQUE (dados duplicados)
-            print(f"[AVISO] Alguns registros já existem e foram ignorados: {e}")
+            logger.warning(f"Alguns registros já existem (ignorados): {e}")
             return 0
 
         except Exception as e:
-            print(f"[ERRO] Erro ao inserir dados: {e}")
-            raise
+            logger.error(f"Erro ao inserir dados no banco: {e}")
+            return 0
 
     def get_latest_data(self, limit: int = 10) -> pd.DataFrame:
         """
