@@ -79,6 +79,7 @@ graph TD
         Logger -->|Rotação 5MB| LogFile[data/logs/pipeline.log]
     end
 
+
     style Pandera fill:#333,stroke:#fff,stroke-width:2px,color:#fff
     style Alert fill:#000,stroke:#fff,stroke-width:2px,color:#fff
     style DVC fill:#444,stroke:#fff,stroke-width:2px,color:#fff
@@ -140,16 +141,18 @@ graph TD
     4.  Se aprovado, `main.py` recebe o DF e chama `database.insert_dataframe()`.
 *   **Assincronicidade**: O `dvc_versioning.py` **não** é chamado pelo `main.py`. Ele é disparado independentemente pelo Sistema Operacional (Cron), demonstrando o desacoplamento entre Operação (Ingestão) e Governança (Backup/Versionamento).
 
+*   **Sincronia Git/DVC**: Hooks automáticos garantem integridade:
+    - **pre-commit**: Atualiza o arquivo `.dvc` se o banco mudou.
+    - **pre-push**: Envia os dados para o remote (`dvc push`) antes de subir o código para o GitHub.
+
+
 ## Funcionalidades Principais
 
-### 1. Ingestão Híbrida Inteligente (`main.py`)
-- **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas) via `crontab` (3x/dia).
 ### 1. Ingestão Híbrida Inteligente (`main.py`)
 - **Modo Real-Time**: Captura o estado atual do mercado (Top 250 moedas) via `crontab` (3x/dia).
 - **Modo Histórico**: Capacidade de *backfill* de dados passados (configurável, ex: 365 dias) com controle inteligente de limites da API.
 
 ### 2. Resiliência e Monitoramento (`src/email_alert.py`)
-
 - **Alerta de Falha**: O pipeline monitora sua própria execução. Caso a coleta retorne 0 registros, um alerta crítico é disparado por e-mail para o administrador.
 
 ### 3. Versionamento de Dados (`src/dvc_versioning.py`)
