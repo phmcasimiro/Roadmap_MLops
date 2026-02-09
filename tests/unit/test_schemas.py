@@ -25,8 +25,11 @@ def test_schema_valid_data():
         "current_price": [50000.0],
         "market_cap": [1000.0],
         "total_volume": [500.0],
+        "price_change_24h": [100.0],
+        "price_change_percentage_24h": [0.2],
         "collected_at": [datetime.now()],
     }
+
     df = pd.DataFrame(data)
 
     # A validação retorna o próprio DF se bem-sucedida, ou levanta exceção se falhar
