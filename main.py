@@ -24,7 +24,10 @@ from src.api_client import CoinGeckoClient  # Cliente para coletar dados da API
 from src.data_processor import CryptoDataProcessor  # Processador de dados
 from src.database import CryptoDatabase  # Banco de dados
 from src.email_alert import send_alert  # Alertas
+from src.logger import get_logger  # Logging
 import pandera as pa  # Validação
+
+logger = get_logger(__name__)
 
 
 def parse_arguments():
@@ -83,13 +86,12 @@ def parse_arguments():
 
 def collect_realtime_data(args, client, db):
     """Executa fluxo de coleta em tempo real."""
-    print("\n[ETAPA 1] Coletando dados em TEMPO REAL...")
-    print("-" * 70)
+    logger.info("Iniciando coleta em TEMPO REAL...")
 
     limit = args.limit
     if args.all:
-        print(
-            "[AVISO] Modo --all ativado. Limitando a 250 moedas (máximo por página) para demo rápida."
+        logger.warning(
+            "Modo --all ativado. Limitando a 250 moedas (máximo por página) para demo rápida."
         )
         # Em tempo real, a paginação seria necessária para pegar TODOS.
         # Para simplificar, vamos pegar o max de uma página.
@@ -98,7 +100,7 @@ def collect_realtime_data(args, client, db):
     raw_data = client.get_top_cryptocurrencies(limit=limit)
 
     if not raw_data:
-        print("[ERRO] Falha ao coletar dados da API")
+        logger.error("Falha ao coletar dados da API")
         return False
 
     # Processamento
@@ -109,14 +111,11 @@ def collect_realtime_data(args, client, db):
         # Armazenamento
         total_saved = db.insert_dataframe(df)
 
-        print("-" * 70)
-        print(
-            f"[SUCESSO] Coleta em tempo real finalizada. Registros salvos: {total_saved}"
-        )
+        logger.info(f"Coleta em tempo real finalizada. Registros salvos: {total_saved}")
 
         # Validação de Ingestão (Alerting)
         if total_saved == 0:
-            print("[AVISO] Nenhum registro novo foi salvo.")
+            logger.warning("Nenhum registro novo foi salvo.")
             send_alert(
                 "Falha na Ingestão (0 Registros)",
                 "O pipeline rodou mas nenhum dado foi salvo no banco. Verifique logs.",
@@ -126,7 +125,7 @@ def collect_realtime_data(args, client, db):
         return True
 
     except Exception as e:
-        print(f"[ERRO] Erro no processamento: {e}")
+        logger.exception(f"Erro no processamento: {e}")
         raise e
 
 
@@ -134,18 +133,12 @@ def main():
     """Função principal do script."""
     args = parse_arguments()
 
-    print("=" * 70)
-    print("SISTEMA DE COLETA DE DADOS DE CRIPTOMOEDAS")
-    print("=" * 70)
-    print(f"Configuracao:")
-    print(f"   - Modo: {'HISTÓRICO' if args.historical else 'TEMPO REAL'}")
-    print(
-        f"   - Limite moedas: {args.limit if not args.all else 'TODAS (Top 250 demo)'}"
+    logger.info("=" * 70)
+    logger.info("SISTEMA DE COLETA DE DADOS DE CRIPTOMOEDAS")
+    logger.info("=" * 70)
+    logger.info(
+        f"Configuracao: Modo={'HISTÓRICO' if args.historical else 'TEMPO REAL'}, Banco={args.db_path}"
     )
-    print(f"   - Banco: {args.db_path}")
-    if args.historical:
-        print(f"   - Dias: {args.days}")
-    print("=" * 70)
 
     try:
         db = CryptoDatabase(db_path=args.db_path)
@@ -158,40 +151,35 @@ def main():
 
         if success:
             # Estatísticas finais
-            print("\nESTATISTICAS DO BANCO DE DADOS:")
-            print("-" * 70)
+            logger.info("Coleta finalizada com sucesso.")
             stats = db.get_statistics()
             try:
-                print(f"   Total de registros: {stats['total_records']['count']}")
-                print(f"   Moedas únicas: {stats['unique_coins']['count']}")
-                print(f"   Primeira coleta: {stats['date_range']['first_collection']}")
-                print(f"   Última coleta: {stats['date_range']['last_collection']}")
+                msg_stats = (
+                    f"Estatisticas: Total={stats['total_records']['count']} | "
+                    f"Unicas={stats['unique_coins']['count']} | "
+                    f"UltimaCol={stats['date_range']['last_collection']}"
+                )
+                logger.info(msg_stats)
             except KeyError:
-                print("   Dados insuficientes para estatísticas.")
+                logger.info("Dados insuficientes para estatísticas.")
 
-            print("\n" + "=" * 70)
-            print("[SUCESSO] PROCESSO CONCLUIDO!")
-            print("=" * 70)
+            logger.info("PROCESSO CONCLUIDO!")
             return 0
         else:
             return 1
 
     except KeyboardInterrupt:
-        print("\n\n[AVISO] Processo interrompido pelo usuário")
+        logger.warning("Processo interrompido pelo usuário")
         return 130
 
     except pa.errors.SchemaErrors as e:
-        error_msg = f"Violação de Contrato de Dados (Pandera):\n{e.failure_cases}"
-        print(f"\n[ERRO DE VALIDACAO] {error_msg}")
+        error_msg = f"Violação de Contrato de Dados (Pandera): {e.failure_cases}"
+        logger.error(error_msg)
         send_alert("Falha de Validação (Schema)", error_msg, "phmcasimiro@gmail.com")
         return 1
 
     except Exception as e:
-        print(f"\n[ERRO CRITICO] {e}")
-        if args.verbose:
-            import traceback
-
-            traceback.print_exc()
+        logger.critical(f"ERRO CRITICO Nao Tratado: {e}", exc_info=True)
         send_alert("Erro Crítico no Pipeline", str(e), "phmcasimiro@gmail.com")
         return 1
 

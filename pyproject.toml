@@ -1,3 +1,10 @@
+# Arquivo de Configuração do Projeto (PEP 518/621)
+#
+# Este arquivo centraliza todas as configurações de build, dependências e ferramentas
+# de desenvolvimento (como pytest, black, isort). Ele substitui arquivos antigos
+# como setup.py, requirements.txt (parcialmente) e pytest.ini, consolidando
+# a definição do ambiente em um único lugar padronizado.
+
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -28,3 +35,8 @@ dev = [
     "flake8",
     "mypy"
 ]
+
+[tool.pytest.ini_options]
+addopts = "-ra -q"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]

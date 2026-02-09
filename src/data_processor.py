@@ -6,41 +6,33 @@ estruturados e prontos para análise e persistência.
 """
 
 import pandas as pd
+import numpy as np
 from typing import List, Dict, Optional
 from datetime import datetime
+import pandera as pa
+from src.schemas import MarketDataSchema
+from src.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class CryptoDataProcessor:
-    """Processador de dados de criptomoedas."""
+    """
+    Classe responsável pelo processamento, limpeza e enriquecimento dos dados.
+    """
 
-    @staticmethod
-    def process_market_data(raw_data: List[Dict]) -> pd.DataFrame:
+    def process_market_data(self, raw_data: list) -> pd.DataFrame:
         """
-        Processa dados de mercado em DataFrame estruturado.
-
-        Args:
-            raw_data (List[Dict]): Dados brutos da API
-
-        Returns:
-            pd.DataFrame: DataFrame processado e limpo
-
-        Raises:
-            ValueError: Se raw_data estiver vazio
-
-        Example:
-            >>> processor = CryptoDataProcessor()
-            >>> df = processor.process_market_data(api_data)
-            >>> print(df.columns)
+        Processa dados brutos de mercado, valida e enriquece.
         """
         if not raw_data:
+            logger.error("raw_data não pode estar vazio.")
             raise ValueError("raw_data não pode estar vazio")
 
-        print(f"[PROCESSANDO] Processando {len(raw_data)} registros...")
-
-        # Selecionar campos relevantes
         processed_data = []
 
         for item in raw_data:
+
             record = {
                 "id": item.get("id"),
                 "symbol": item.get("symbol", "").upper(),
@@ -166,7 +158,7 @@ class CryptoDataProcessor:
         # Volatilidade 24h (range / preço atual)
         # Range é a diferença entre o preço máximo e o preço mínimo em um determinado período
         # Se o preço atual for maior que o preço máximo, o resultado será positivo (acima do recorde)
-        # Se o preço atual for menor que o preço mínimo, o resultado será negativo (abaixo do recorde)    
+        # Se o preço atual for menor que o preço mínimo, o resultado será negativo (abaixo do recorde)
         if all(col in df.columns for col in ["high_24h", "low_24h", "current_price"]):
             df["volatility_24h"] = (
                 (df["high_24h"] - df["low_24h"]) / df["current_price"] * 100
@@ -190,9 +182,8 @@ class CryptoDataProcessor:
                 (df["current_price"] - df["atl"]) / df["atl"] * 100
             )
 
-
         # O volume é o número de transações em um determinado período
-        # A capitalização de mercado é o valor total de todas as moedas em 
+        # A capitalização de mercado é o valor total de todas as moedas em
         # Volume/Market Cap ratio
         # Se o volume for maior que a capitalização de mercado, o resultado será positivo (acima do recorde)
         # Se o volume for menor que a capitalização de mercado, o resultado será negativo (abaixo do recorde)
